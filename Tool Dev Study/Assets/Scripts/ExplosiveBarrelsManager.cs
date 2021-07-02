@@ -23,13 +23,14 @@ public class ExplosiveBarrelsManager : MonoBehaviour
 
     foreach (ExplosiveBarrel barrel in allBarrels)
 	{
+            if (barrel.type == null) continue;
 
             Vector3 managerPos = transform.position;
             Vector3 barrelPos = barrel.transform.position;
             float halfHeight = (managerPos.y - barrelPos.y) * 0.5f;
             Vector3 tangentOffset = Vector3.up * halfHeight;
 
-            Handles.DrawBezier(managerPos, barrelPos, managerPos - tangentOffset, barrelPos + tangentOffset, Color.white, EditorGUIUtility.whiteTexture, 1f) ;
+            Handles.DrawBezier(managerPos, barrelPos, managerPos - tangentOffset, barrelPos + tangentOffset, barrel.type.color, EditorGUIUtility.whiteTexture, 1f) ;
 
             // using Handles is better beacause
             // used when dragging things around
@@ -39,6 +40,7 @@ public class ExplosiveBarrelsManager : MonoBehaviour
 
             //Gizmos.DrawLine(transform.position, barrel.transform.position);
         }
+        Handles.color = Color.white;
 
     }
     #endif

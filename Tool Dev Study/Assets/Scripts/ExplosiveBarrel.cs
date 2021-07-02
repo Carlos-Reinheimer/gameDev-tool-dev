@@ -8,14 +8,8 @@ using UnityEditor;
 [ExecuteAlways]
 public class ExplosiveBarrel : MonoBehaviour
 {
-    // define variables that are gonna be used 
 
-    // TIP: use a slider to make sure the person who is gonna use it (like a level designer) doesn't make mistakes
-    [Range(1f, 8f)]
-    public float radius = 4f;
-    
-    public float damage = 10f;
-    public Color color = Color.red;
+    public BarrelType type;
 
     MaterialPropertyBlock mpb;
 
@@ -28,20 +22,6 @@ public class ExplosiveBarrel : MonoBehaviour
             if (mpb == null) mpb = new MaterialPropertyBlock();
             return mpb;
         }
-    }
-
-    void ApplyColor()
-    {
-        MeshRenderer rnd = GetComponent<MeshRenderer>();
-        Mpb.SetColor(shPropColor, color);
-        rnd.SetPropertyBlock(Mpb); // setting the Propertie Block to the mesh
-
-        //rnd.material.SetColor("_Color", color); ==== rnd.material.color(color);
-    }
-    private void OnValidate()
-    {
-        // This function is called every time some value has changed in the inspector
-        ApplyColor();
     }
 
     //private void Awake()
@@ -68,17 +48,31 @@ public class ExplosiveBarrel : MonoBehaviour
     void OnEnable() => ExplosiveBarrelsManager.allBarrels.Add(this);
     // removing it self of the list of allBarrels in the manager
     void OnDisable() => ExplosiveBarrelsManager.allBarrels.Remove(this);
-    
-       
-
-    
-
-
+   
     //onDrawGizmos - helps who is using the gameObject to visualize what's is hapenning
     private void OnDrawGizmosSelected()
     {
-        Handles.DrawWireDisc(transform.position, transform.up, radius);
+        if (type == null) return;
+
+        Handles.color = type.color;
+        Handles.DrawWireDisc(transform.position, transform.up, type.radius);
+        Handles.color = Color.white; // reset back to the default
 
         //Gizmos.DrawWireSphere(transform.position, radius);
+    }
+
+    void TryApplyColor()
+    {
+        if (type == null) return;
+        MeshRenderer rnd = GetComponent<MeshRenderer>();
+        Mpb.SetColor(shPropColor, type.color);
+        rnd.SetPropertyBlock(Mpb); // setting the Propertie Block to the mesh
+
+        //rnd.material.SetColor("_Color", color); ==== rnd.material.color(color);
+    }
+    private void OnValidate()
+    {
+        // This function is called every time some value has changed in the inspector
+        TryApplyColor();
     }
 }
