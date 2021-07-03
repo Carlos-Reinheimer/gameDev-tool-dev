@@ -12,28 +12,41 @@ public class BarrelTypeEditor : Editor {
     //[SerializeField] float thing2; // serialized, visible & private
     //[HideInInspector] public float thing3; // serialized, hidden, public
 
-    public enum Things
-    {
-        Bleep, Bloop, Bluup
+    SerializedObject so;
+    SerializedProperty propRadius;
+    SerializedProperty propDamage;
+    SerializedProperty propColor;
+
+    private void OnEnable() { // intialize things in the editor        
+        so = serializedObject;
+        propRadius = so.FindProperty("radius");
+        propDamage = so.FindProperty("damage");
+        propColor = so.FindProperty("color");
     }
-
-    Things things;
-    float someValue;
-
 
 
     public override void OnInspectorGUI() {
-        
-        BarrelType barrel = target as BarrelType; // reference to the object in the inspector     // targets - for multiple selection
 
-        float newRadius = EditorGUILayout.FloatField("radius", barrel.radius);
-        if (newRadius != barrel.radius) {
-            Undo.RecordObject(barrel, "change barrel radius");
-            barrel.radius = newRadius;
+        so.Update();
+        EditorGUILayout.PropertyField(propRadius);
+        EditorGUILayout.PropertyField(propDamage);
+        EditorGUILayout.PropertyField(propColor);
+        if (so.ApplyModifiedProperties()) { // if something changed
+            ExplosiveBarrelsManager.UpdateAllBarrelColors();
         }
 
-        barrel.damage = EditorGUILayout.FloatField("damage", barrel.damage);
-        barrel.color = EditorGUILayout.ColorField("color", barrel.color);
+
+
+        // --------- BAD WAY ----------
+        //BarrelType barrel = target as BarrelType; // reference to the object in the inspector     // targets - for multiple selection
+        //float newRadius = EditorGUILayout.FloatField("radius", barrel.radius);
+        //if (newRadius != barrel.radius) {
+        //    Undo.RecordObject(barrel, "change barrel radius");
+        //    barrel.radius = newRadius;
+        //}
+
+        //barrel.damage = EditorGUILayout.FloatField("damage", barrel.damage);
+        //barrel.color = EditorGUILayout.ColorField("color", barrel.color);
     }
 
 

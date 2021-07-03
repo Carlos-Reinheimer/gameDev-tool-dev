@@ -13,6 +13,12 @@ public class ExplosiveBarrelsManager : MonoBehaviour
     // having a script who knows all the other barrels that exists
     public static List<ExplosiveBarrel> allBarrels = new List<ExplosiveBarrel>();
 
+    public static void UpdateAllBarrelColors() {
+        foreach (ExplosiveBarrel barrel in allBarrels) {
+            barrel.TryApplyColor();
+        }
+    }
+
     // sabe if in the funciton
     #if UNITY_EDITOR
     private void OnDrawGizmos()

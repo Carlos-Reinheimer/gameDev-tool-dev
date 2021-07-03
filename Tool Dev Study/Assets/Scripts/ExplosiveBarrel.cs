@@ -50,7 +50,7 @@ public class ExplosiveBarrel : MonoBehaviour
     void OnDisable() => ExplosiveBarrelsManager.allBarrels.Remove(this);
    
     //onDrawGizmos - helps who is using the gameObject to visualize what's is hapenning
-    private void OnDrawGizmosSelected()
+    private void OnDrawGizmos()
     {
         if (type == null) return;
 
@@ -61,7 +61,7 @@ public class ExplosiveBarrel : MonoBehaviour
         //Gizmos.DrawWireSphere(transform.position, radius);
     }
 
-    void TryApplyColor()
+    public void TryApplyColor()
     {
         if (type == null) return;
         MeshRenderer rnd = GetComponent<MeshRenderer>();
