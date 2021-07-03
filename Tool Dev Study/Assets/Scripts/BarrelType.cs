@@ -15,19 +15,19 @@ public class BarrelType : ScriptableObject
     public float damage = 10f;
     public Color color = Color.red;
 
-    public List<MyClass> thing = new List<MyClass>();
+    //public List<MyClass> thing = new List<MyClass>();
 }
 
-[Serializable]
-public class MyClass
-{
-    public Vector3 pos;
-    public Color color;
-}
+//[Serializable]
+//public class MyClass
+//{
+//    public Vector3 pos;
+//    public Color color;
+//}
 
-[Serializable]
-public class MyOtherClass: MyClass
-{
-    public Quaternion rot;
-}
+//[Serializable]
+//public class MyOtherClass: MyClass
+//{
+//    public Quaternion rot;
+//}
 
