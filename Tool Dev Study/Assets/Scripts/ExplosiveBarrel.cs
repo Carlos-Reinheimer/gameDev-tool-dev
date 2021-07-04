@@ -61,6 +61,11 @@ public class ExplosiveBarrel : MonoBehaviour
         //Gizmos.DrawWireSphere(transform.position, radius);
     }
 
+    [ContextMenu("Do something")]
+    public void DoSomething() {
+        Debug.Log("test");
+    }
+
     public void TryApplyColor()
     {
         if (type == null) return;
