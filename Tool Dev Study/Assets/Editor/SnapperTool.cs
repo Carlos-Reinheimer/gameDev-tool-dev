@@ -33,10 +33,20 @@ public class SnapperTool : EditorWindow {
         propGridType = so.FindProperty("gridType");
         propAngularDivision = so.FindProperty("angularDivision");
 
+        // laod saved configs
+        gridSize = EditorPrefs.GetFloat("SNAPPER_TOOL_gridSize", 1f );
+        gridType = (GridType)EditorPrefs.GetInt("SNAPPER_TOOL_gridType", 0);
+        angularDivision = EditorPrefs.GetInt("SNAPPER_TOOL_angularDivision", 24);
+
         Selection.selectionChanged += Repaint; // update the window when selection change
         SceneView.duringSceneGui += DuringSceneGUI;
     }
     private void OnDisable() {
+        // save configs
+        EditorPrefs.SetFloat("SNAPPER_TOOL_gridSize", gridSize);
+        EditorPrefs.SetInt("SNAPPER_TOOL_gridType", (int)gridType);
+        EditorPrefs.SetInt("SNAPPER_TOOL_angularDivision", angularDivision);
+
         Selection.selectionChanged -= Repaint;
         SceneView.duringSceneGui -= DuringSceneGUI;
     }
