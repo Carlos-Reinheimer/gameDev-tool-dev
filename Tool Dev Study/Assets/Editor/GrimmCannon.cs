@@ -11,10 +11,14 @@ public class GrimmCannon : EditorWindow {
 
     public float radius = 2f;
     public int spawnCount = 8;
+    public GameObject spawnPrefab = null;
+    public Material previewMaterial;
 
     SerializedObject so;
     SerializedProperty propRadius;
     SerializedProperty propSpawnCount;
+    SerializedProperty propSpawnPrefab;
+    SerializedProperty propPreviewMaterial;
 
     Vector2[] randPoints;
 
@@ -24,6 +28,8 @@ public class GrimmCannon : EditorWindow {
         so = new SerializedObject(this);
         propRadius = so.FindProperty("radius");
         propSpawnCount = so.FindProperty("spawnCount");
+        propSpawnPrefab = so.FindProperty("spawnPrefab");
+        propPreviewMaterial = so.FindProperty("previewMaterial");
         GenerateRandomPoints();
         SceneView.duringSceneGui += DuringSceneGUI;
     }
@@ -41,15 +47,31 @@ public class GrimmCannon : EditorWindow {
         Handles.SphereHandleCap(-1, pos, Quaternion.identity, 0.1f, EventType.Repaint);
     }
 
+    void TrySpawnObjects(List<Pose> poses) {
+        if (spawnPrefab == null) return;
+
+        foreach (Pose pose in poses) {
+            // spawn prefab
+            GameObject spawnedThing = (GameObject)PrefabUtility.InstantiatePrefab(spawnPrefab);
+            Undo.RegisterCreatedObjectUndo(spawnedThing, "Spawned objects");
+            spawnedThing.transform.position = pose.position;
+            spawnedThing.transform.rotation = pose.rotation;
+        }
+        GenerateRandomPoints(); // update points
+
+
+    }
+
     private void OnGUI() { // from the window
         so.Update();
         EditorGUILayout.PropertyField(propRadius);
         propRadius.floatValue = propRadius.floatValue.AtLeast(1f); // make sure it stops at 1
         EditorGUILayout.PropertyField(propSpawnCount);
         propSpawnCount.intValue = propSpawnCount.intValue.AtLeast(1); // make sure it stops at 1
+        EditorGUILayout.PropertyField(propSpawnPrefab);
+        EditorGUILayout.PropertyField(propPreviewMaterial);
 
-        if (so.ApplyModifiedProperties())
-        {
+        if (so.ApplyModifiedProperties()) {
             GenerateRandomPoints();
             SceneView.RepaintAll();
         }
@@ -82,8 +104,9 @@ public class GrimmCannon : EditorWindow {
         bool holdingAlt = (Event.current.modifiers & EventModifiers.Alt) != 0;
 
         // change the radius on scroll wheel
-        if (Event.current.type == EventType.ScrollWheel && !holdingAlt) {
-            float scrollDirection = Mathf.Sign( Event.current.delta.y); // -1 || 1 || 0
+        if (Event.current.type == EventType.ScrollWheel && !holdingAlt)
+        {
+            float scrollDirection = Mathf.Sign(Event.current.delta.y); // -1 || 1 || 0
 
             so.Update();
             propRadius.floatValue *= 1 + scrollDirection * 0.05f;
@@ -110,6 +133,8 @@ public class GrimmCannon : EditorWindow {
                 return new Ray(rayOrigin, rayDirection);
             }
 
+            List<Pose> hitPoses = new List<Pose>();
+
             // drawing points
             foreach (Vector2 p in randPoints) {
                 // create rau for this point
@@ -117,10 +142,39 @@ public class GrimmCannon : EditorWindow {
                 // raycast to find point on surface
 
                 if (Physics.Raycast(ptRay, out RaycastHit ptHit)) {
+
+                    // calculate rotation and assign to pose together with position
+                    float randomAngDeg = Random.value * 360;
+                    Quaternion randRot = Quaternion.Euler(0f, 0f, randomAngDeg);
+                    Quaternion rot = Quaternion.LookRotation(ptHit.normal) * (randRot * Quaternion.Euler(90f, 0f, 0f));
+                    Pose pose = new Pose(ptHit.point, rot);
+                    hitPoses.Add(pose);
+
                     // draw sphere and normal on surface
                     DrawSphere(ptHit.point);
                     Handles.DrawAAPolyLine(ptHit.point, ptHit.point + ptHit.normal);
+
+                    // mesh 
+                    MeshFilter[] filters = spawnPrefab.GetComponentsInChildren<MeshFilter>();
+                    foreach (MeshFilter filter in filters) {
+                        Mesh mesh = filter.sharedMesh;
+                        Material mat = filter.GetComponent<MeshRenderer>().sharedMaterial;
+                        mat.SetPass(0);
+                        Graphics.DrawMeshNow(mesh, pose.position, pose.rotation);
+                    }
+
+                    //Mesh mesh = spawnPrefab.GetComponent<MeshFilter>().sharedMesh;
+                    //Material mat = spawnPrefab.GetComponent<MeshRenderer>().sharedMaterial; // use material of the prefab
+                    //mat.SetPass(0);
+                    //Graphics.DrawMeshNow(mesh, pose.position, pose.rotation);
                 }
+            }
+
+            // spawn on press
+            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Space) {
+                // Debug.Log(Event.current.type);
+                TrySpawnObjects(hitPoses);
+
             }
 
             Handles.color = Color.red;
@@ -146,6 +200,9 @@ public class GrimmCannon : EditorWindow {
             Handles.DrawAAPolyLine(ringPoints);
             //Handles.DrawWireDisc(hit.point, hit.normal, radius);
         }
+
+
+
     }
 
 }
