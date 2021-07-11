@@ -18,4 +18,7 @@ public static class ExtensionMethods {
     public static float Round(this float v, float gridSize) {
         return Mathf.Round(v / gridSize) * gridSize;
     }
+
+    public static float AtLeast(this float v, float min) => Mathf.Max(v, min);
+    public static int AtLeast(this int v, int min) => Mathf.Max(v, min);
 }
