@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using UnityEngine.Rendering;
+using System.Linq;
 
 public class GrimmCannon : EditorWindow {
 
@@ -20,7 +21,19 @@ public class GrimmCannon : EditorWindow {
     SerializedProperty propSpawnPrefab;
     SerializedProperty propPreviewMaterial;
 
-    Vector2[] randPoints;
+    public struct RandomData {
+        public Vector2 pointInDisc;
+        public float randAngleDeg;
+
+        public void SetRandomValues() {
+            pointInDisc = Random.insideUnitCircle;
+            randAngleDeg = Random.value * 360;
+        }
+    }
+
+    RandomData[] randPoints;
+
+    GameObject[] prefabs;
 
 
     private void OnEnable() {
@@ -32,14 +45,19 @@ public class GrimmCannon : EditorWindow {
         propPreviewMaterial = so.FindProperty("previewMaterial");
         GenerateRandomPoints();
         SceneView.duringSceneGui += DuringSceneGUI;
+
+        // load spawn prefabs
+        string[] guids = AssetDatabase.FindAssets("t:prefab", new[] {"Assets/Prefabs"}); // find all Global Unique Identifiers
+        IEnumerable<string> paths = guids.Select(AssetDatabase.GUIDToAssetPath);
+        prefabs = paths.Select(AssetDatabase.LoadAssetAtPath<GameObject>).ToArray();
     }
 
     private void OnDisable() => SceneView.duringSceneGui -= DuringSceneGUI;
 
     void GenerateRandomPoints() {
-        randPoints = new Vector2[spawnCount];
+        randPoints = new RandomData[spawnCount];
         for (int i = 0; i < spawnCount; i++) {
-            randPoints[i] = Random.insideUnitCircle;
+            randPoints[i].SetRandomValues();
         }
     }
 
@@ -94,6 +112,22 @@ public class GrimmCannon : EditorWindow {
     //}
 
     void DuringSceneGUI(SceneView sceneView) {
+
+        Handles.BeginGUI();
+        Rect rect = new Rect(8, 8, 64, 64);
+
+        foreach (GameObject prefab in prefabs) {
+
+            Texture icon = AssetPreview.GetAssetPreview(prefab);  
+            // GUI.Button(rect, new GUIContent(icon)) - NORMAL BUTTON
+            if (GUI.Toggle(rect, spawnPrefab == prefab, new GUIContent(icon))) { // checkboxes
+                spawnPrefab = prefab;
+            }
+            rect.y += rect.height + 2;
+        }
+
+        Handles.EndGUI();
+
         Handles.zTest = CompareFunction.LessEqual;
         Transform camTf = sceneView.camera.transform;
 
@@ -136,16 +170,15 @@ public class GrimmCannon : EditorWindow {
             List<Pose> hitPoses = new List<Pose>();
 
             // drawing points
-            foreach (Vector2 p in randPoints) {
+            foreach (RandomData rndDataPoint in randPoints) {
                 // create rau for this point
-                Ray ptRay = GetTangentRay(p);
+                Ray ptRay = GetTangentRay(rndDataPoint.pointInDisc);
                 // raycast to find point on surface
 
                 if (Physics.Raycast(ptRay, out RaycastHit ptHit)) {
 
                     // calculate rotation and assign to pose together with position
-                    float randomAngDeg = Random.value * 360;
-                    Quaternion randRot = Quaternion.Euler(0f, 0f, randomAngDeg);
+                    Quaternion randRot = Quaternion.Euler(0f, 0f, rndDataPoint.randAngleDeg);
                     Quaternion rot = Quaternion.LookRotation(ptHit.normal) * (randRot * Quaternion.Euler(90f, 0f, 0f));
                     Pose pose = new Pose(ptHit.point, rot);
                     hitPoses.Add(pose);
@@ -155,12 +188,17 @@ public class GrimmCannon : EditorWindow {
                     Handles.DrawAAPolyLine(ptHit.point, ptHit.point + ptHit.normal);
 
                     // mesh 
+                    if (spawnPrefab != null) {
+                    Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(pose.position, pose.rotation, Vector3.one);
                     MeshFilter[] filters = spawnPrefab.GetComponentsInChildren<MeshFilter>();
                     foreach (MeshFilter filter in filters) {
+                        Matrix4x4 childToPoseMtx = filter.transform.localToWorldMatrix;
+                        Matrix4x4 childToWorldMtx = poseToWorldMtx * childToPoseMtx;
                         Mesh mesh = filter.sharedMesh;
                         Material mat = filter.GetComponent<MeshRenderer>().sharedMaterial;
                         mat.SetPass(0);
-                        Graphics.DrawMeshNow(mesh, pose.position, pose.rotation);
+                        Graphics.DrawMeshNow(mesh, childToWorldMtx);
+                    }
                     }
 
                     //Mesh mesh = spawnPrefab.GetComponent<MeshFilter>().sharedMesh;
