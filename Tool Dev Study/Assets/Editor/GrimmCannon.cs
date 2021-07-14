@@ -5,6 +5,33 @@ using UnityEditor;
 using UnityEngine.Rendering;
 using System.Linq;
 
+public struct SpawnData
+{
+    public Vector2 pointInDisc;
+    public float randAngleDeg;
+    public GameObject spawnPrefab;
+
+    public void SetRandomValues(List<GameObject> prefabs)
+    {
+        pointInDisc = Random.insideUnitCircle;
+        randAngleDeg = Random.value * 360;
+        spawnPrefab = prefabs[Random.Range(0, prefabs.Count)];
+    }
+}
+
+public class SpawnPoint {
+    public SpawnData spawnData;
+    public Vector3 position;
+    public Quaternion rotation;
+
+    public Vector3 up => rotation * Vector3.up;
+    public SpawnPoint(Vector3 position, Quaternion rotation, SpawnData spawnData) {
+        this.spawnData = spawnData;
+        this.position = position;
+        this.rotation = rotation;
+    }
+}
+
 public class GrimmCannon : EditorWindow {
 
     [MenuItem("Tools/Grimm Cannon")]
@@ -12,7 +39,7 @@ public class GrimmCannon : EditorWindow {
 
     public float radius = 2f;
     public int spawnCount = 8;
-    public GameObject spawnPrefab = null;
+    public List<GameObject> spawnPrefabs = new List<GameObject>();
     public Material previewMaterial;
 
     SerializedObject so;
@@ -21,17 +48,9 @@ public class GrimmCannon : EditorWindow {
     SerializedProperty propSpawnPrefab;
     SerializedProperty propPreviewMaterial;
 
-    public struct RandomData {
-        public Vector2 pointInDisc;
-        public float randAngleDeg;
+    [SerializeField] bool[] prefabSelectionStates;
 
-        public void SetRandomValues() {
-            pointInDisc = Random.insideUnitCircle;
-            randAngleDeg = Random.value * 360;
-        }
-    }
-
-    RandomData[] randPoints;
+    SpawnData[] randPoints;
 
     GameObject[] prefabs;
 
@@ -50,14 +69,17 @@ public class GrimmCannon : EditorWindow {
         string[] guids = AssetDatabase.FindAssets("t:prefab", new[] {"Assets/Prefabs"}); // find all Global Unique Identifiers
         IEnumerable<string> paths = guids.Select(AssetDatabase.GUIDToAssetPath);
         prefabs = paths.Select(AssetDatabase.LoadAssetAtPath<GameObject>).ToArray();
+        if (prefabSelectionStates == null || prefabSelectionStates.Length != prefabs.Length) {
+            prefabSelectionStates = new bool[prefabs.Length];
+        }
     }
 
     private void OnDisable() => SceneView.duringSceneGui -= DuringSceneGUI;
 
     void GenerateRandomPoints() {
-        randPoints = new RandomData[spawnCount];
+        randPoints = new SpawnData[spawnCount];
         for (int i = 0; i < spawnCount; i++) {
-            randPoints[i].SetRandomValues();
+            randPoints[i].SetRandomValues(spawnPrefabs);
         }
     }
 
@@ -65,12 +87,13 @@ public class GrimmCannon : EditorWindow {
         Handles.SphereHandleCap(-1, pos, Quaternion.identity, 0.1f, EventType.Repaint);
     }
 
-    void TrySpawnObjects(List<Pose> poses) {
-        if (spawnPrefab == null) return;
+    void TrySpawnObjects(List<SpawnPoint> spawnPoints) {
 
-        foreach (Pose pose in poses) {
+        if (spawnPrefabs == null) return;
+
+        foreach (SpawnPoint pose in spawnPoints) {
             // spawn prefab
-            GameObject spawnedThing = (GameObject)PrefabUtility.InstantiatePrefab(spawnPrefab);
+            GameObject spawnedThing = (GameObject)PrefabUtility.InstantiatePrefab(spawnPrefabs[0]);
             Undo.RegisterCreatedObjectUndo(spawnedThing, "Spawned objects");
             spawnedThing.transform.position = pose.position;
             spawnedThing.transform.rotation = pose.rotation;
@@ -116,13 +139,20 @@ public class GrimmCannon : EditorWindow {
         Handles.BeginGUI();
         Rect rect = new Rect(8, 8, 64, 64);
 
-        foreach (GameObject prefab in prefabs) {
-
-            Texture icon = AssetPreview.GetAssetPreview(prefab);  
+        for (int i = 0; i < prefabs.Length; i++) {
             // GUI.Button(rect, new GUIContent(icon)) - NORMAL BUTTON
-            if (GUI.Toggle(rect, spawnPrefab == prefab, new GUIContent(icon))) { // checkboxes
-                spawnPrefab = prefab;
+            GameObject prefab = prefabs[i];
+            Texture icon = AssetPreview.GetAssetPreview(prefab);
+            EditorGUI.BeginChangeCheck();
+            prefabSelectionStates[i] = GUI.Toggle(rect, prefabSelectionStates[i], new GUIContent(icon));
+            if (EditorGUI.EndChangeCheck()) {
+                // update selection list
+                spawnPrefabs.Clear(); 
+                for (int j = 0; j < prefabs.Length; j++) {
+                    if (prefabSelectionStates[j]) spawnPrefabs.Add(prefabs[j]);
+                }
             }
+            //spawnPrefabs = prefab;
             rect.y += rect.height + 2;
         }
 
@@ -167,10 +197,10 @@ public class GrimmCannon : EditorWindow {
                 return new Ray(rayOrigin, rayDirection);
             }
 
-            List<Pose> hitPoses = new List<Pose>();
+            List<SpawnPoint> hitSpawnPoints = new List<SpawnPoint>();
 
             // drawing points
-            foreach (RandomData rndDataPoint in randPoints) {
+            foreach (SpawnData rndDataPoint in randPoints) {
                 // create rau for this point
                 Ray ptRay = GetTangentRay(rndDataPoint.pointInDisc);
                 // raycast to find point on surface
@@ -180,17 +210,17 @@ public class GrimmCannon : EditorWindow {
                     // calculate rotation and assign to pose together with position
                     Quaternion randRot = Quaternion.Euler(0f, 0f, rndDataPoint.randAngleDeg);
                     Quaternion rot = Quaternion.LookRotation(ptHit.normal) * (randRot * Quaternion.Euler(90f, 0f, 0f));
-                    Pose pose = new Pose(ptHit.point, rot);
-                    hitPoses.Add(pose);
+                    SpawnPoint spawnPoint = new SpawnPoint(ptHit.point, rot, rndDataPoint );
+                    hitSpawnPoints.Add(spawnPoint);
 
                     // draw sphere and normal on surface
                     DrawSphere(ptHit.point);
                     Handles.DrawAAPolyLine(ptHit.point, ptHit.point + ptHit.normal);
 
                     // mesh 
-                    if (spawnPrefab != null) {
-                    Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(pose.position, pose.rotation, Vector3.one);
-                    MeshFilter[] filters = spawnPrefab.GetComponentsInChildren<MeshFilter>();
+                    if (spawnPrefabs != null && spawnPrefabs.Count > 0) {
+                    Matrix4x4 poseToWorldMtx = Matrix4x4.TRS(spawnPoint.position, spawnPoint.rotation, Vector3.one);
+                    MeshFilter[] filters = spawnPrefabs[0].GetComponentsInChildren<MeshFilter>();
                     foreach (MeshFilter filter in filters) {
                         Matrix4x4 childToPoseMtx = filter.transform.localToWorldMatrix;
                         Matrix4x4 childToWorldMtx = poseToWorldMtx * childToPoseMtx;
@@ -211,7 +241,7 @@ public class GrimmCannon : EditorWindow {
             // spawn on press
             if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Space) {
                 // Debug.Log(Event.current.type);
-                TrySpawnObjects(hitPoses);
+                TrySpawnObjects(hitSpawnPoints);
 
             }
 
