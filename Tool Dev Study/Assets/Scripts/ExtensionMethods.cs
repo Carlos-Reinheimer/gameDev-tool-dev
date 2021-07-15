@@ -49,13 +49,22 @@ public class SpawnPoint
     public SpawnData spawnData;
     public Vector3 position;
     public Quaternion rotation;
+    public bool isValid = false;
 
-    public Vector3 up => rotation * Vector3.up;
-    public SpawnPoint(Vector3 position, Quaternion rotation, SpawnData spawnData)
-    {
+    public Vector3 Up => rotation * Vector3.up;
+    public SpawnPoint(Vector3 position, Quaternion rotation, SpawnData spawnData) {
         this.spawnData = spawnData;
         this.position = position;
         this.rotation = rotation;
+
+        // check if this mesh can be placed/fit current location
+        SpawnablePrefabs spawnablePrefab = spawnData.prefab.GetComponent<SpawnablePrefabs>();
+        if (spawnablePrefab == null) isValid = true;
+        else {
+            float h = spawnablePrefab.height;
+            Ray ray = new Ray(position, Up);
+            isValid = Physics.Raycast(ray, h) == false;
+        }
     }
 }
 
@@ -66,6 +75,9 @@ public static void OpenGrimm() => GetWindow<GrimmCannon>();
 public float radius = 2f;
 public int spawnCount = 8;
 public List<GameObject> spawnPrefabs = new List<GameObject>();
+
+public Material materialInvalid;
+
 public Material previewMaterial;
 
 SerializedObject so;
@@ -88,6 +100,9 @@ private void OnEnable() {
     GenerateRandomPoints();
     SceneView.duringSceneGui += DuringSceneGUI;
 
+    Shader sh = Shader.Find("Unlit/InvalidSpawn")
+    materialInvalid = new Material(sh);
+
     // load spawn prefabs
     string[] guids = AssetDatabase.FindAssets("t:prefab", new[] { "Assets/Prefabs" }); // find all Global Unique Identifiers
     IEnumerable<string> paths = guids.Select(AssetDatabase.GUIDToAssetPath);
@@ -97,7 +112,10 @@ private void OnEnable() {
     }
 }
 
-private void OnDisable() => SceneView.duringSceneGui -= DuringSceneGUI;
+private void OnDisable() {
+    SceneView.duringSceneGui -= DuringSceneGUI;
+    DestroyImmediate(materialInvalid);
+}
 
 void GenerateRandomPoints() {
     randPoints = new SpawnData[spawnCount];
@@ -131,6 +149,7 @@ private void OnGUI() { // from the window
 void TrySpawnObjects (List<SpawnPoint> spawnPoints) {
     if (spawnPrefabs.Count == 0) return;
     foreach (SpawnPoint spawnPoint in spawnPoints) {
+        if (spawnPoint.isValid == false) continue;
         // spawn prefab
         GameObject spawnedThing = (GameObject)PrefabUtility.InstantiatePrefab(spawnPoint.spawnData.prefab);
         Undo.RegisterCreatedObjectUndo(spawnedThing, "Spawn objects");
@@ -213,22 +232,22 @@ void DrawSpawnPreviews (List<SpawnPoint> spawnPoints, Camera cam) {
         if (spawnPoint.spawnData.prefab != null) {
             // draw preview of all meshes in prefab
             Matrix4x4 poseToWorld = Matrix4x4.TRS(spawnPoint.position, spawnPoint.rotation, Vector3.one);
-            DrawPrefab(spawnPoint.spawnData.prefab, poseToWorld, cam);
+            DrawPrefab(spawnPoint.spawnData.prefab, poseToWorld, cam, spawnPoint.isValid);
         } else {
             // prefab missing, draw sphere and normal on surface instead
             Handles.SphereHandleCap(-1, spawnPoint.position, Quaternion.identity, 0.1f, EventType.Repaint);
-            Handles.DrawAAPolyline(spawnPoint.position, spawnPoint.position + spawnPoint.up);
+            Handles.DrawAAPolyline(spawnPoint.position, spawnPoint.position + spawnPoint.Up);
         }
     }
 }
 
-static void DrawPrefab (GameObject prefab, Matrix4x4 poseToWorld, Camera cam) {
+ void DrawPrefab (GameObject prefab, Matrix4x4 poseToWorld, Camera cam, bool valid) {
     MeshFilter[] filters = prefab.GetComponentsInChildren<MeshFilter>();
     foreach (MeshFilter filter in filters) {
         Matrix4x4 childToPose = filter.transform.localToWorldMatrix;
         Matrix4x4 childToWorldMtx = poseToWorld * childToPose;
         Mesh mesh = filter.sharedMesh;
-        Material mat = filter.GetComponent<MeshRenderer>().sharedMaterial;
+        Material mat = valid ? filter.GetComponent<MeshRenderer>().sharedMaterial : materialInvalid;
         //mat.SetPass(0); // global setting Graphics.X commands
         Graphics.DrawMesh(mesh, childToWorldMtx, mat, 0, cam);
     }

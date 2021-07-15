@@ -40,6 +40,8 @@ public class GrimmCannon : EditorWindow {
     public float radius = 2f;
     public int spawnCount = 8;
     public List<GameObject> spawnPrefabs = new List<GameObject>();
+
+
     public Material previewMaterial;
 
     SerializedObject so;
@@ -168,8 +170,7 @@ public class GrimmCannon : EditorWindow {
         bool holdingAlt = (Event.current.modifiers & EventModifiers.Alt) != 0;
 
         // change the radius on scroll wheel
-        if (Event.current.type == EventType.ScrollWheel && !holdingAlt)
-        {
+        if (Event.current.type == EventType.ScrollWheel && !holdingAlt) {
             float scrollDirection = Mathf.Sign(Event.current.delta.y); // -1 || 1 || 0
 
             so.Update();
